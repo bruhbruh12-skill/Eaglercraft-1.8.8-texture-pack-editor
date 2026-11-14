@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Minecraft Universal Texture Studio</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+:root{color-scheme:dark;--panel:#151e29;--panel2:#1d2937;--line:#304154;--text:#eaf2fa;--muted:#9aabba;--cyan:#68d5ff;--mint:#8df0b1;--red:#ff9292}
+*{box-sizing:border-box}
+body{margin:0;padding:16px;background:radial-gradient(ellipse at top,#18283a,#0c1118 68%);color:var(--text);font:14px/1.45 system-ui,Segoe UI,Arial,sans-serif}
+button,input,select{font:inherit}
+button{cursor:pointer;color:var(--text);background:#243347;border:1px solid var(--line);border-radius:8px;padding:8px 11px}
+button:hover{border-color:var(--cyan)}
+button:disabled{opacity:.55;cursor:wait}
+button.active{color:var(--cyan);border-color:#52bfe9;background:#123144}
+.app{max-width:1480px;margin:auto;border:1px solid var(--line);border-radius:15px;overflow:hidden;background:#0d141dee;box-shadow:0 24px 60px #0008}
+header{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:16px 20px;border-bottom:1px solid var(--line);background:#121a24}
+h1{font-size:clamp(18px,2.4vw,25px);margin:0}
+.subtitle{color:var(--muted);font-size:11px;letter-spacing:.1em;text-transform:uppercase}
+.top-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.top-controls label{color:var(--muted)}
+input[type=text],select{color:var(--text);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:9px}
+input[type=text]{min-width:170px}
+#download{font-weight:750;color:#07141b;border:0;background:linear-gradient(120deg,var(--cyan),var(--mint))}
+.main{display:grid;grid-template-columns:310px minmax(0,1fr);min-height:690px}
+.sidebar{padding:14px;border-right:1px solid var(--line);background:#111923}
+.source-box,.asset-box,.toolbar,.settings,.stage,.help{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:10px}
+.box-title{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin:0 0 8px}
+#sourceFile{width:100%;font-size:11px;color:var(--muted)}
+#sourceName{color:var(--mint);font-size:11px;margin-top:6px;overflow-wrap:anywhere}
+#search{width:100%;margin-bottom:8px}
+#folder{width:100%;margin-bottom:8px}
+#textureList{height:min(54vh,510px);overflow:auto;border:1px solid var(--line);border-radius:8px;background:#0c1219}
+.texture{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid #263343;border-radius:0;background:transparent;padding:7px 8px;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.texture:hover{background:#1b2b3c}
+.texture.selected{background:#123144;color:var(--cyan)}
+.right{padding:15px;min-width:0}
+.toolbar{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.toolbar button{font-size:12px;padding:7px 9px}
+.colorctl,.toggle{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:12px}
+.colorctl{margin-left:auto}
+input[type=color]{height:30px;width:38px;padding:2px;border-radius:6px;border:1px solid var(--line);background:var(--panel2);cursor:pointer}
+.settings{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;color:var(--muted);font-size:12px}
+#selectedPath{overflow-wrap:anywhere;color:var(--cyan);font-size:12px}
+.stage{display:grid;place-items:center;min-height:480px;overflow:auto;background-color:#0a0f15;background-image:linear-gradient(45deg,#18222e 25%,transparent 25%),linear-gradient(-45deg,#18222e 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#18222e 75%),linear-gradient(-45deg,transparent 75%,#18222e 75%);background-size:20px 20px;background-position:0 0,0 10px,10px -10px,-10px 0}
+#editorCanvas{display:none;width:min(70vh,640px);height:auto;max-width:100%;max-height:70vh;image-rendering:pixelated;object-fit:contain;touch-action:none;cursor:crosshair;box-shadow:0 4px 24px #0008}
+.empty{max-width:530px;text-align:center;color:var(--muted);padding:24px}
+.help{color:var(--muted);font-size:12px}
+.status{color:var(--mint);font-size:12px;min-height:18px;margin-top:8px;overflow-wrap:anywhere}
+.status.error{color:var(--red)}
+@media(max-width:850px){.main{grid-template-columns:1fr}.sidebar{border-right:0;border-bottom:1px solid var(--line)}#textureList{height:240px}header{align-items:flex-start;flex-direction:column}.top-controls{width:100%}.top-controls input[type=text]{flex:1}}
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+  <div>
+    <h1>Universal Minecraft Texture Studio</h1>
+    <div class="subtitle">Minecraft Java 1.8.8 · default pack loads automatically</div>
+  </div>
+  <div class="top-controls">
+    <label for="packName">Pack name</label>
+    <input id="packName" type="text" value="My 1.8.8 Pack">
+    <button id="download" disabled>Download Pack (.zip)</button>
+  </div>
+</header>
+
+<div class="main">
+  <aside class="sidebar">
+    <div class="source-box">
+      <div class="box-title">1. Default pack / choose another ZIP</div>
+      <input id="sourceFile" type="file" accept=".zip,.jar,.mcpack,application/zip,application/java-archive">
+      <div id="sourceName">Loading default pack from GitHub…</div>
+    </div>
+
+    <div class="asset-box">
+      <div class="box-title">2. Find a texture</div>
+      <input id="search" type="search" placeholder="Search texture names or paths…" disabled>
+      <select id="folder" disabled><option value="">All texture folders</option></select>
+      <div id="textureList"></div>
+    </div>
+  </aside>
+
+  <main class="right">
+    <div class="toolbar">
+      <button class="tool active" data-tool="pencil">Pencil</button>
+      <button class="tool" data-tool="eraser">Eraser</button>
+      <button class="tool" data-tool="fill">Bucket fill</button>
+      <button class="tool" data-tool="picker">Eyedropper</button>
+      <label class="colorctl">Color <input id="color" type="color" value="#ffffff"></label>
+      <label class="toggle"><input id="symmetry" type="checkbox"> Symmetry</label>
+      <button id="undo" disabled>Undo</button>
+      <button id="restore" disabled>Restore original</button>
+    </div>
+
+    <div class="settings">
+      <div>Selected: <span id="selectedPath">No texture selected</span></div>
+      <div id="dimensions"></div>
+    </div>
+
+    <div class="stage">
+      <div id="empty" class="empty">
+        Loading the default pack. Textures will appear in the list as soon as the archive is read.
+        Only the selected texture is decoded for editing.
+      </div>
+      <canvas id="editorCanvas"></canvas>
+    </div>
+
+    <div class="help">
+      The loaded pack is the starting point. The downloaded ZIP preserves its files and replaces only textures you edit. You can choose a different pack ZIP above at any time.
+    </div>
+    <div id="status" class="status" role="status" aria-live="polite"></div>
+  </main>
+</div>
+</div>
+
+<script>
+"use strict";
+
+const DEFAULT_PACK_URL =
+  "https://raw.githubusercontent.com/bruhbruh12-skill/Default-texture-pack-for-1.8/main/Default-Java-1.8.9.zip";
+
+const $ = id => document.getElementById(id);
+const canvas = $("editorCanvas");
+const ctx = canvas.getContext("2d", {willReadFrequently:true});
+
+const app = {
+  sourceZip:null,
+  sourceIsJar:false,
+  rootPrefix:"",
+  files:new Map(),
+  selected:null,
+  selectionToken:0,
+  tool:"pencil",
+  color:"#ffffff",
+  symmetry:false,
+  painting:false,
+  last:null,
+  undo:new Map()
+};
+
+function setStatus(message,error=false){
+  const node=$("status");
+  node.textContent=message||"";
+  node.classList.toggle("error",error);
+}
+
+function normalizedArchivePath(path){
+  return path.replace(/\\/g,"/").replace(/^\/+/,"");
+}
+
+function texturePathFromArchive(path){
+  const normalized=normalizedArchivePath(path);
+  const marker="assets/minecraft/textures/";
+  const at=normalized.toLowerCase().indexOf(marker);
+  return at<0?null:normalized.slice(at);
+}
+
+function updateList(){
+  const list=$("textureList");
+  const query=$("search").value.trim().toLowerCase();
+  const folder=$("folder").value;
+  list.innerHTML="";
+
+  const matches=[...app.files.values()]
+    .filter(record=>{
+      const rest=record.path.slice("assets/minecraft/textures/".length);
+      const slash=rest.indexOf("/");
+      const recordFolder=slash<0?"(root)":rest.slice(0,slash);
+      return (!folder||recordFolder===folder)&&(!query||record.path.toLowerCase().includes(query));
+    })
+    .sort((a,b)=>a.path.localeCompare(b.path));
+
+  for(const record of matches){
+    const button=document.createElement("button");
+    button.className="texture"+(record.path===app.selected?" selected":"");
+    button.title=record.path;
+    button.textContent=(record.edited?"● ":"")+record.path.replace("assets/minecraft/textures/","");
+    button.onclick=()=>selectTexture(record.path);
+    list.appendChild(button);
+  }
+
+  if(!matches.length){
+    const message=document.createElement("div");
+    message.style.cssText="padding:12px;color:#9aabba;font-size:12px";
+    message.textContent=app.files.size?"No textures match this search.":"No texture PNGs loaded.";
+    list.appendChild(message);
+  }
+}
+
+function collectFolders(){
+  const folders=new Set();
+  for(const path of app.files.keys()){
+    const rest=path.slice("assets/minecraft/textures/".length);
+    const slash=rest.indexOf("/");
+    folders.add(slash<0?"(root)":rest.slice(0,slash));
+  }
+
+  const select=$("folder");
+  select.innerHTML='<option value="">All texture folders</option>';
+  [...folders].sort().forEach(folder=>{
+    const option=document.createElement("option");
+    option.value=folder==="(root)"?"":folder;
+    option.textContent=folder;
+    select.appendChild(option);
+  });
+}
+
+function updateButtons(record){
+  const history=record?app.undo.get(record.path):null;
+  $("undo").disabled=!(history&&history.length);
+  $("restore").disabled=!record||!record.edited;
+}
+
+async function selectTexture(path){
+  const record=app.files.get(path);
+  if(!record)return;
+
+  app.selected=path;
+  const token=++app.selectionToken;
+  $("selectedPath").textContent=record.path;
+  $("dimensions").textContent="Loading texture…";
+  $("empty").style.display="none";
+  canvas.style.display="none";
+  updateList();
+  updateButtons(record);
+  setStatus("Decoding selected texture…");
+
+  try{
+    if(!record.original){
+      const blob=await record.entry.async("blob");
+      const url=URL.createObjectURL(blob);
+      const image=new Image();
+
+      await new Promise((resolve,reject)=>{
+        image.onload=resolve;
+        image.onerror=()=>reject(new Error("Browser could not decode this PNG."));
+        image.src=url;
+      });
+      URL.revokeObjectURL(url);
+      record.original=image;
+      record.width=image.naturalWidth;
+      record.height=image.naturalHeight;
+    }
+
+    if(token!==app.selectionToken)return;
+
+    canvas.width=record.width;
+    canvas.height=record.height;
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.drawImage(record.edited?record.editedCanvas:record.original,0,0);
+    canvas.style.display="block";
+    $("dimensions").textContent=`${record.width} × ${record.height}px${record.edited?" · edited":""}`;
+    updateButtons(record);
+    setStatus("");
+  }catch(error){
+    if(token!==app.selectionToken)return;
+    $("dimensions").textContent="Could not display texture";
+    setStatus(`Texture load error: ${record.path} — ${error.message}`,true);
+  }
+}
+
+async function loadArchive(file){
+  if(!window.JSZip)throw new Error("JSZip did not load. Check your internet connection and reload the page.");
+
+  $("download").disabled=true;
+  $("search").disabled=true;
+  $("folder").disabled=true;
+  $("sourceName").textContent=`Opening ${file.name}…`;
+  $("empty").style.display="block";
+  canvas.style.display="none";
+  app.files.clear();
+  app.selected=null;
+  app.undo.clear();
+  app.sourceZip=null;
+  updateList();
+  setStatus("Reading ZIP directory…");
+
+  const zip=await JSZip.loadAsync(file);
+  const entries=Object.values(zip.files).filter(entry=>
+    !entry.dir&&texturePathFromArchive(entry.name)&&/\.png$/i.test(entry.name)
+  );
+
+  if(!entries.length){
+    throw new Error("The ZIP opened, but no PNGs under assets/minecraft/textures/ were found.");
+  }
+
+  const firstPath=normalizedArchivePath(entries[0].name);
+  const marker=firstPath.toLowerCase().indexOf("assets/minecraft/textures/");
+  app.rootPrefix=firstPath.slice(0,marker);
+  app.sourceZip=zip;
+  app.sourceIsJar=/\.jar$/i.test(file.name);
+
+  // Index texture entries first; decode only the texture selected by the user.
+  for(const entry of entries){
+    const path=texturePathFromArchive(entry.name);
+    if(!path)continue;
+    app.files.set(path,{
+      path,
+      entry,
+      original:null,
+      edited:false,
+      editedCanvas:null,
+      width:0,
+      height:0
+    });
+  }
+
+  if(!app.files.size)throw new Error("No usable Minecraft texture PNGs were found.");
+
+  collectFolders();
+  $("search").disabled=false;
+  $("folder").disabled=false;
+  $("download").disabled=false;
+  $("sourceName").textContent=`${file.name} · ${app.files.size} textures found`;
+  updateList();
+
+  const first=[...app.files.keys()].sort()[0];
+  setStatus(`Found ${app.files.size} textures. Loading the first texture…`);
+  await selectTexture(first);
+}
+
+$("sourceFile").addEventListener("change",async event=>{
+  const file=event.target.files&&event.target.files[0];
+  if(!file)return;
+
+  try{
+    await loadArchive(file);
+  }catch(error){
+    console.error(error);
+    $("sourceName").textContent="Could not load this file.";
+    $("empty").style.display="block";
+    canvas.style.display="none";
+    setStatus(error.message,true);
+  }
+});
+
+$("search").addEventListener("input",updateList);
+$("folder").addEventListener("change",updateList);
+
+document.querySelectorAll(".tool").forEach(button=>{
+  button.addEventListener("click",()=>{
+    app.tool=button.dataset.tool;
+    document.querySelectorAll(".tool").forEach(item=>item.classList.toggle("active",item===button));
+  });
+});
+
+$("color").addEventListener("input",event=>app.color=event.target.value);
+$("symmetry").addEventListener("change",event=>app.symmetry=event.target.checked);
+
+function selectedRecord(){
+  return app.selected?app.files.get(app.selected):null;
+}
+
+function pointerPixel(event){
+  const rect=canvas.getBoundingClientRect();
+  const x=Math.floor((event.clientX-rect.left)/rect.width*canvas.width);
+  const y=Math.floor((event.clientY-rect.top)/rect.height*canvas.height);
+  if(x<0||y<0||x>=canvas.width||y>=canvas.height)return null;
+  return [x,y];
+}
+
+function saveUndo(record){
+  const history=app.undo.get(record.path)||[];
+  history.push(ctx.getImageData(0,0,canvas.width,canvas.height));
+  if(history.length>30)history.shift();
+  app.undo.set(record.path,history);
+  $("undo").disabled=false;
+}
+
+function ensureEditedCanvas(record){
+  if(!record.editedCanvas){
+    record.editedCanvas=document.createElement("canvas");
+    record.editedCanvas.width=record.width;
+    record.editedCanvas.height=record.height;
+    record.editedCanvas.getContext("2d").drawImage(record.original,0,0);
+  }
+  record.edited=true;
+  return record.editedCanvas;
+}
+
+function hexToRgba(value){
+  return [
+    parseInt(value.slice(1,3),16),
+    parseInt(value.slice(3,5),16),
+    parseInt(value.slice(5,7),16),
+    255
+  ];
+}
+
+function floodFill(imageData,startX,startY,fillColor){
+  const {data,width,height}=imageData;
+  const start=(startY*width+startX)*4;
+  const target=Array.from(data.slice(start,start+4));
+  const fill=hexToRgba(fillColor);
+  if(target.every((value,index)=>value===fill[index]))return false;
+
+  const stack=[[startX,startY]];
+  const seen=new Uint8Array(width*height);
+
+  while(stack.length){
+    const [x,y]=stack.pop();
+    if(x<0||y<0||x>=width||y>=height)continue;
+    const pixelIndex=y*width+x;
+    if(seen[pixelIndex])continue;
+    seen[pixelIndex]=1;
+    const offset=pixelIndex*4;
+
+    if(data[offset]!==target[0]||data[offset+1]!==target[1]||
+       data[offset+2]!==target[2]||data[offset+3]!==target[3])continue;
+
+    data[offset]=fill[0];
+    data[offset+1]=fill[1];
+    data[offset+2]=fill[2];
+    data[offset+3]=fill[3];
+    stack.push([x+1,y],[x-1,y],[x,y+1],[x,y-1]);
+  }
+  return true;
+}
+
+function finishEdit(record){
+  const edited=ensureEditedCanvas(record);
+  const editCtx=edited.getContext("2d");
+  editCtx.clearRect(0,0,edited.width,edited.height);
+  editCtx.drawImage(canvas,0,0);
+  $("dimensions").textContent=`${record.width} × ${record.height}px · edited`;
+  updateButtons(record);
+  updateList();
+}
+
+function paintAt(x,y){
+  const record=selectedRecord();
+  if(!record)return;
+
+  if(app.tool==="picker"){
+    const rgba=ctx.getImageData(x,y,1,1).data;
+    if(rgba[3]){
+      app.color="#"+[...rgba].slice(0,3).map(v=>v.toString(16).padStart(2,"0")).join("");
+      $("color").value=app.color;
+    }
+    return;
+  }
+
+  if(app.tool==="fill"){
+    const imageData=ctx.getImageData(0,0,canvas.width,canvas.height);
+    if(!floodFill(imageData,x,y,app.color))return;
+    ctx.putImageData(imageData,0,0);
+  }else{
+    const points=[[x,y]];
+    if(app.symmetry)points.push(
+      [canvas.width-1-x,y],
+      [x,canvas.height-1-y],
+      [canvas.width-1-x,canvas.height-1-y]
+    );
+
+    for(const [px,py] of points){
+      if(app.tool==="eraser")ctx.clearRect(px,py,1,1);
+      else{ctx.fillStyle=app.color;ctx.fillRect(px,py,1,1)}
+    }
+  }
+
+  finishEdit(record);
+}
+
+canvas.addEventListener("pointerdown",event=>{
+  const record=selectedRecord();
+  const point=pointerPixel(event);
+  if(!record||!point||!record.original)return;
+
+  canvas.setPointerCapture(event.pointerId);
+  app.painting=true;
+  app.last=point;
+  if(app.tool!=="picker")saveUndo(record);
+  paintAt(...point);
+});
+
+canvas.addEventListener("pointermove",event=>{
+  if(!app.painting||app.tool==="fill"||app.tool==="picker")return;
+  const point=pointerPixel(event);
+  if(!point||(app.last&&point[0]===app.last[0]&&point[1]===app.last[1]))return;
+  app.last=point;
+  paintAt(...point);
+});
+
+function stopPainting(){app.painting=false;app.last=null}
+canvas.addEventListener("pointerup",stopPainting);
+canvas.addEventListener("pointercancel",stopPainting);
+
+$("undo").addEventListener("click",()=>{
+  const record=selectedRecord();
+  const history=record&&app.undo.get(record.path);
+  if(!record||!history||!history.length)return;
+
+  ctx.putImageData(history.pop(),0,0);
+  finishEdit(record);
+  $("undo").disabled=!history.length;
+});
+
+$("restore").addEventListener("click",async()=>{
+  const record=selectedRecord();
+  if(!record)return;
+  record.edited=false;
+  record.editedCanvas=null;
+  app.undo.delete(record.path);
+  await selectTexture(record.path);
+  setStatus("Original texture restored; it will not be replaced in the downloaded pack.");
+});
+
+function safeSlug(value){
+  return(value||"minecraft-pack").trim().toLowerCase()
+    .replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")||"minecraft-pack";
+}
+
+async function exportPack(){
+  if(!app.sourceZip){
+    setStatus("The default pack has not loaded yet.",true);
+    return;
+  }
+
+  const button=$("download");
+  button.disabled=true;
+  button.textContent="Building ZIP…";
+
+  try{
+    const output=new JSZip();
+    const packName=$("packName").value.trim()||"My 1.8.8 Pack";
+
+    for(const entry of Object.values(app.sourceZip.files)){
+      if(entry.dir)continue;
+
+      const archivePath=normalizedArchivePath(entry.name);
+      const outputPath=archivePath.startsWith(app.rootPrefix)
+        ?archivePath.slice(app.rootPrefix.length)
+        :archivePath;
+
+      if(app.sourceIsJar&&!/^assets\/minecraft\/textures\/.*\.png$/i.test(outputPath)){
+        continue;
+      }
+
+      const texturePath=texturePathFromArchive(archivePath);
+      const record=texturePath?app.files.get(texturePath):null;
+
+      if(record&&record.edited){
+        const blob=await new Promise((resolve,reject)=>{
+          record.editedCanvas.toBlob(
+            result=>result?resolve(result):reject(new Error("Could not encode "+record.path)),
+            "image/png"
+          );
+        });
+        output.file(outputPath,blob);
+      }else{
+        output.file(outputPath,await entry.async("uint8array"));
+      }
+    }
+
+    const metadataPath=Object.keys(output.files).find(path=>path.toLowerCase()==="pack.mcmeta");
+    if(!metadataPath){
+      output.file("pack.mcmeta",JSON.stringify({
+        pack:{pack_format:1,description:packName}
+      },null,2));
+    }
+
+    const blob=await output.generateAsync({
+      type:"blob",
+      compression:"DEFLATE",
+      compressionOptions:{level:6}
+    });
+    const url=URL.createObjectURL(blob);
+    const link=document.createElement("a");
+    link.href=url;
+    link.download=safeSlug(packName)+".zip";
+    link.click();
+    setTimeout(()=>URL.revokeObjectURL(url),2000);
+
+    const editedCount=[...app.files.values()].filter(record=>record.edited).length;
+    setStatus(`Downloaded. Original pack preserved; ${editedCount} edited texture${editedCount===1?"":"s"} replaced.`);
+  }catch(error){
+    console.error(error);
+    setStatus("Export failed: "+error.message,true);
+  }finally{
+    button.disabled=false;
+    button.textContent="Download Pack (.zip)";
+  }
+}
+
+$("download").addEventListener("click",exportPack);
+
+async function loadDefaultPack(){
+  if(!window.JSZip){
+    setStatus("JSZip did not load. Check your internet connection and reload.",true);
+    $("sourceName").textContent="ZIP library unavailable.";
+    return;
+  }
+
+  try{
+    setStatus("Downloading the default pack from GitHub…");
+    const response=await fetch(DEFAULT_PACK_URL,{cache:"no-cache"});
+    if(!response.ok)throw new Error(`GitHub returned HTTP ${response.status}`);
+
+    const blob=await response.blob();
+    const file=new File([blob],"Default-Java-1.8.9.zip",{type:"application/zip"});
+    await loadArchive(file);
+  }catch(error){
+    console.error(error);
+    $("sourceName").textContent="Automatic load failed. You can still choose the ZIP above.";
+    setStatus("Could not load the GitHub default pack: "+error.message,true);
+  }
+}
+
+loadDefaultPack();
+</script>
+</body>
+</html>
